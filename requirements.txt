@@ -1,0 +1,10 @@
+langchain-community
+langchain-google-genai
+langgraph
+reportlab
+google-generativeai
+google-ai-generativelanguage
+requests
+python-dotenv
+pydantic
+typing-extensions
