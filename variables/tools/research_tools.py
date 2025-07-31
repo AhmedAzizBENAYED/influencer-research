@@ -105,14 +105,62 @@ def save_markdown_report(
     markdown_content: str,
     out_path: str | None = None,
 ) -> str:
-    if out_path is None:
-        os.makedirs(settings.OUTPUT_DIR, exist_ok=True)
-        out_path = f"{settings.OUTPUT_DIR}/influencer_report.md"
+    """Save markdown report with enhanced error handling and path resolution."""
+    try:
+        if out_path is None:
+            # If no path is provided, use the default settings.OUTPUT_DIR and filename
+            os.makedirs(settings.OUTPUT_DIR, exist_ok=True)
+            final_file_path = os.path.join(settings.OUTPUT_DIR, "influencer_report.md")
+        elif os.path.isdir(out_path):
+            # If out_path is an existing directory, join the default filename to it
+            os.makedirs(out_path, exist_ok=True)
+            final_file_path = os.path.join(out_path, "influencer_report.md")
+        else:
+            # If out_path is a specific file path, use it directly
+            # Ensure its parent directory exists
+            parent_dir = os.path.dirname(out_path)
+            if parent_dir and not os.path.exists(parent_dir):
+                os.makedirs(parent_dir, exist_ok=True)
+            final_file_path = out_path
 
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write(markdown_content.strip() + "\n")
+        # Validate that we can write to the target location
+        test_path = os.path.dirname(final_file_path) if os.path.dirname(final_file_path) else "."
+        if not os.access(test_path, os.W_OK):
+            raise PermissionError(f"Cannot write to directory: {test_path}")
 
-    return os.path.abspath(out_path)
+        # Write the file with proper encoding
+        with open(final_file_path, "w", encoding="utf-8") as f:
+            f.write(markdown_content.strip() + "\n")
+
+        # Verify the file was actually created
+        if not os.path.exists(final_file_path):
+            raise IOError(f"File was not created successfully: {final_file_path}")
+
+        absolute_path = os.path.abspath(final_file_path)
+        print(f"✅ Report successfully saved to: {absolute_path}")
+        return absolute_path
+        
+    except Exception as e:
+        # Enhanced error handling with fallback options
+        print(f"❌ Error saving to {final_file_path if 'final_file_path' in locals() else 'unknown path'}: {e}")
+        
+        # Try fallback to current directory
+        try:
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            fallback_filename = f"influencer_report_fallback_{timestamp}.md"
+            
+            with open(fallback_filename, "w", encoding="utf-8") as f:
+                f.write(markdown_content.strip() + "\n")
+            
+            fallback_path = os.path.abspath(fallback_filename)
+            print(f"💾 Fallback: Report saved to current directory: {fallback_path}")
+            return fallback_path
+            
+        except Exception as e2:
+            print(f"❌ Critical: Could not save report anywhere: {e2}")
+            # Return a descriptive error message instead of raising
+            return f"ERROR: Could not save report - {str(e)} | Fallback failed - {str(e2)}"
 
 
 # Initialize tools with enhanced configuration
@@ -125,12 +173,18 @@ def get_research_tools():
     )
     
     # Enhanced Tavily search with more results
-    tavily_search = TavilySearchResults(
-        max_results=8,  # Increased from 4
-        search_depth="advanced",  # More thorough search
-        include_answer=True,
-        include_raw_content=True
-    )
+    try:
+        tavily_search = TavilySearchResults(
+            max_results=8,  # Increased from 4
+            search_depth="advanced",  # More thorough search
+            include_answer=True,
+            include_raw_content=True
+        )
+    except Exception as e:
+        print(f"⚠️ Warning: Could not initialize Tavily search: {e}")
+        # Create a fallback version
+        from langchain_community.tools.tavily_search import TavilySearchResults
+        tavily_search = TavilySearchResults(max_results=5)
     
     return [
         novada_google_search_tool,

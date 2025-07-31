@@ -19,6 +19,34 @@ class InteractiveResearchCLI:
     def __init__(self):
         self.workflow = None
         self.query_analyzer = QueryAnalyzer()
+        # Ensure output directory exists at initialization
+        self._ensure_output_directory()
+    
+    def _ensure_output_directory(self):
+        """Ensure the output directory exists and is writable."""
+        try:
+            # Create the output directory
+            os.makedirs(settings.OUTPUT_DIR, exist_ok=True)
+            
+            # Test write permissions
+            test_file = os.path.join(settings.OUTPUT_DIR, "test_write.tmp")
+            with open(test_file, "w") as f:
+                f.write("test")
+            os.remove(test_file)
+            
+            print(f"✅ Output directory ready: {os.path.abspath(settings.OUTPUT_DIR)}")
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Issue with output directory {settings.OUTPUT_DIR}: {e}")
+            # Try to create an alternative output directory
+            alt_dir = os.path.join(os.getcwd(), "research_outputs")
+            try:
+                os.makedirs(alt_dir, exist_ok=True)
+                settings.OUTPUT_DIR = alt_dir
+                print(f"✅ Using alternative output directory: {os.path.abspath(alt_dir)}")
+            except Exception as e2:
+                print(f"❌ Cannot create output directory: {e2}")
+                print("Reports will be saved to current directory as fallback")
     
     def display_welcome(self):
         """Display welcome screen with enhanced branding."""
@@ -28,6 +56,7 @@ class InteractiveResearchCLI:
         print("🚀 Powered by Multi-Agent AI | 🔍 Smart Query Analysis | 📊 Professional Reports")
         print("\nWelcome! I'll help you discover the perfect influencers for your campaigns.")
         print("I can search across all major platforms and provide verified contact details.")
+        print(f"📁 Reports will be saved to: {os.path.abspath(settings.OUTPUT_DIR)}")
         
     def show_examples(self):
         """Show enhanced query examples."""
@@ -66,18 +95,22 @@ class InteractiveResearchCLI:
                 continue
             
             # Analyze the query and show insights
-            analysis = self.query_analyzer.analyze_query(query)
-            print(f"\n🧠 SMART ANALYSIS:")
-            print(f"   📍 Niche: {', '.join(analysis.niche)}")
-            print(f"   📱 Platforms: {', '.join(analysis.platforms)}")
-            print(f"   🌍 Geographic Focus: {', '.join(analysis.geographic_focus)}")
-            if analysis.audience_size:
-                print(f"   👥 Audience Size: {analysis.audience_size}")
-            
-            # Show optimized search terms
-            print(f"\n🎯 I'll search for:")
-            for i, term in enumerate(analysis.search_terms[:5], 1):
-                print(f"   {i}. {term}")
+            try:
+                analysis = self.query_analyzer.analyze_query(query)
+                print(f"\n🧠 SMART ANALYSIS:")
+                print(f"   📍 Niche: {', '.join(analysis.niche)}")
+                print(f"   📱 Platforms: {', '.join(analysis.platforms)}")
+                print(f"   🌍 Geographic Focus: {', '.join(analysis.geographic_focus)}")
+                if analysis.audience_size:
+                    print(f"   👥 Audience Size: {analysis.audience_size}")
+                
+                # Show optimized search terms
+                print(f"\n🎯 I'll search for:")
+                for i, term in enumerate(analysis.search_terms[:5], 1):
+                    print(f"   {i}. {term}")
+            except Exception as e:
+                print(f"⚠️ Query analysis failed: {e}")
+                print("🔄 Continuing with raw query...")
             
             print(f"\n📝 Your query: '{query}'")
             confirm = input("✅ Proceed with this research? (y/n/edit): ").strip().lower()
@@ -124,6 +157,8 @@ class InteractiveResearchCLI:
             
         except Exception as e:
             print(f"❌ Research error: {e}")
+            import traceback
+            traceback.print_exc()
             return None, 0
     
     def display_results(self, result: str, duration: float):
@@ -133,13 +168,13 @@ class InteractiveResearchCLI:
         print("="*80)
         print(f"⏱️  Total time: {duration:.1f} seconds")
         print(f"📄 Result length: {len(result)} characters")
-        print(f"💾 Report saved to: {settings.OUTPUT_DIR}/")
+        print(f"💾 Reports saved to: {os.path.abspath(settings.OUTPUT_DIR)}/")
         
         print("\n📊 RESEARCH SUMMARY:")
         print("-"*50)
         
         # Try to extract some quick stats from the result
-        if result:
+        if result and result != "No results generated":
             lines = result.split('\n')
             word_count = len(result.split())
             print(f"   📝 Total content: {word_count} words, {len(lines)} lines")
@@ -148,11 +183,24 @@ class InteractiveResearchCLI:
             influencer_indicators = ['@', 'followers', 'engagement', 'contact']
             relevant_lines = [line for line in lines if any(indicator in line.lower() for indicator in influencer_indicators)]
             print(f"   👥 Potential influencer profiles found: {len(relevant_lines)}")
+            
+            # Check if we have a proper table structure
+            table_rows = [line for line in lines if line.strip().startswith('|') and '---' not in line]
+            if table_rows:
+                print(f"   📋 Structured profiles: {max(0, len(table_rows) - 1)}")  # Subtract header row
+        else:
+            print("   ⚠️ No structured results generated")
         
         print("-"*50)
-        print("\n📋 FULL RESEARCH RESULTS:")
+        print("\n📋 RESEARCH RESULTS PREVIEW:")
         print("="*80)
-        pprint.pprint(result, width=120)
+        
+        # Show first 2000 characters as preview
+        if result and len(result) > 2000:
+            print(result[:2000] + "...")
+            print(f"\n[... truncated for display. Full results saved to file ...]")
+        else:
+            print(result if result else "No results generated")
     
     def run(self):
         """Main interactive loop."""
@@ -172,10 +220,11 @@ class InteractiveResearchCLI:
                 # Run research
                 result, duration = self.run_research_with_progress(query)
                 
-                if result:
+                if result and result != "No results generated":
                     self.display_results(result, duration)
                 else:
-                    print("❌ Research failed. Please try again with a different query.")
+                    print("❌ Research failed or returned no results.")
+                    print("💡 Try a different query or check your API keys.")
                 
                 # Ask for another search
                 print(f"\n🔄 Would you like to research different influencers? (y/n): ", end="")
@@ -185,7 +234,7 @@ class InteractiveResearchCLI:
                     break
             
             print("\n👋 Thank you for using AI Influencer Research Assistant!")
-            print("💡 Your reports are saved in the outputs/ directory for future reference.")
+            print(f"💡 Your reports are saved in: {os.path.abspath(settings.OUTPUT_DIR)}")
             
         except KeyboardInterrupt:
             print("\n\n👋 Research cancelled by user. Goodbye!")
@@ -197,6 +246,8 @@ class InteractiveResearchCLI:
             sys.exit(1)
         except Exception as e:
             print(f"❌ Unexpected error: {e}")
+            import traceback
+            traceback.print_exc()
             sys.exit(1)
 
 
@@ -207,12 +258,19 @@ def main():
         query = " ".join(sys.argv[1:])
         try:
             settings.validate()
+            
+            # Ensure output directory exists
+            os.makedirs(settings.OUTPUT_DIR, exist_ok=True)
+            
             workflow = InfluencerResearchWorkflow()
             result = workflow.run_research(query)
             print("RESULT:")
-            pprint.pprint(result, width=120)
+            print(result)
+            print(f"\nReport saved to: {os.path.abspath(settings.OUTPUT_DIR)}")
         except Exception as e:
             print(f"Error: {e}")
+            import traceback
+            traceback.print_exc()
             sys.exit(1)
     else:
         # Interactive mode (new enhanced experience)
