@@ -1,0 +1,57 @@
+# Streamlit configuration file
+# Save this as .streamlit/config.toml in your project root
+
+[global]
+# Show debug messages
+developmentMode = false
+
+[server]
+# Port for the Streamlit server
+port = 8501
+
+# Enable CORS for external access
+enableCORS = false
+
+# Enable XSRF protection
+enableXsrfProtection = true
+
+# Max upload size (200MB)
+maxUploadSize = 200
+
+# Run the server headless (no browser auto-open during development)
+headless = false
+
+[browser]
+# Don't gather usage stats
+gatherUsageStats = false
+
+# Server address (use localhost for local development)
+serverAddress = "localhost"
+
+# Auto-open browser
+serverPort = 8501
+
+[theme]
+# Color scheme
+primaryColor = "#667eea"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f2f6"
+textColor = "#262730"
+font = "sans serif"
+
+[runner]
+# Magic commands behavior
+magicEnabled = true
+
+# Install missing packages automatically
+installTracer = false
+
+# Fix matplotlib threading
+fixMatplotlib = true
+
+[client]
+# Show error details
+showErrorDetails = true
+
+# Toolbar mode
+toolbarMode = "auto"
